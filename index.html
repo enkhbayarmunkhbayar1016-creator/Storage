@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="mn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Агуулах</title>
+<style>
+  :root { --bg:#f4f6f8; --card:#fff; --line:#dde2e8; --ink:#1c2430; --mute:#6b7787; --ok:#1a7f37; --low:#b7791f; --out:#c0362c; --pri:#2563eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:#fff; border-bottom:1px solid var(--line); padding:10px 20px; display:flex; gap:16px; align-items:center; position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  nav button { background:none; border:0; padding:8px 12px; cursor:pointer; font:inherit; border-radius:6px; }
+  nav button.active { background:#e8efff; color:var(--pri); font-weight:600; }
+  main { max-width:1200px; margin:0 auto; padding:20px; }
+  input, select, button { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  button.primary { background:var(--pri); color:#fff; border-color:var(--pri); cursor:pointer; }
+  button.danger { color:var(--out); cursor:pointer; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+  .photo { aspect-ratio:4/3; background:#e9edf2 center/cover; display:flex; align-items:center; justify-content:center; color:var(--mute); cursor:pointer; position:relative; }
+  .badge { position:absolute; top:8px; right:8px; padding:2px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600; }
+  .badge.low { background:var(--low); } .badge.out { background:var(--out); }
+  .body { padding:10px; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .name { font-weight:600; } .mute { color:var(--mute); font-size:12px; }
+  .stock { display:flex; align-items:center; justify-content:space-between; margin-top:auto; padding-top:8px; }
+  .stock b { font-size:18px; cursor:pointer; border-bottom:1px dashed var(--mute); }
+  .stock button { width:34px; cursor:pointer; font-size:16px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:20px; }
+  .stat { background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .stat b { font-size:28px; display:block; }
+  table { width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:10px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  h2 { font-size:16px; margin:20px 0 10px; }
+  dialog { border:1px solid var(--line); border-radius:12px; padding:20px; width:min(420px,92vw); }
+  dialog label { display:block; margin:8px 0 2px; color:var(--mute); font-size:12px; }
+  dialog input, dialog select { width:100%; }
+  .login { max-width:340px; margin:12vh auto; background:#fff; padding:24px; border-radius:12px; border:1px solid var(--line); display:flex; flex-direction:column; gap:10px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#1c2430; color:#fff; padding:10px 16px; border-radius:8px; display:none; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<div id="loginView" class="login hidden">
+  <h1 id="loginTitle">Нэвтрэх</h1>
+  <input id="u" placeholder="Хэрэглэгчийн нэр" autocomplete="username">
+  <input id="p" type="password" placeholder="Нууц үг (хамгийн багадаа 8 тэмдэгт)" autocomplete="current-password">
+  <button class="primary" id="loginBtn">Нэвтрэх</button>
+</div>
+
+<div id="appView" class="hidden">
+  <header>
+    <h1>📦 Агуулах</h1>
+    <nav>
+      <button data-tab="dash" class="active">Хяналтын самбар</button>
+      <button data-tab="items">Бараа</button>
+      <button data-tab="log">Хөдөлгөөн</button>
+      <button data-tab="admin" class="adminOnly">Удирдлага</button>
+    </nav>
+    <span class="mute" id="who"></span>
+    <button id="logout">Гарах</button>
+  </header>
+  <main>
+    <section id="tab-dash">
+      <div class="stats"><div class="stat"><b id="sTotal">0</b>Нийт бараа</div><div class="stat"><b id="sLow" style="color:var(--low)">0</b>Дуусч байгаа</div><div class="stat"><b id="sOut" style="color:var(--out)">0</b>Дууссан</div></div>
+      <h2>Нөхөн авах шаардлагатай</h2><div class="grid" id="lowGrid"></div>
+      <h2>Сүүлийн 7 хоногт хамгийн их гарсан бараа</h2><table><thead><tr><th>Бараа</th><th>Гарсан хэмжээ</th></tr></thead><tbody id="leaving"></tbody></table>
+    </section>
+
+    <section id="tab-items" class="hidden">
+      <div class="bar">
+        <input id="q" placeholder="Бараа хайх…">
+        <select id="cat"></select>
+        <select id="status"><option value="">Бүх үлдэгдэл</option><option value="low">Дуусч байгаа</option><option value="out">Дууссан</option></select>
+        <button class="primary" id="addItem">+ Бараа нэмэх</button>
+      </div>
+      <div class="grid" id="grid"></div>
+    </section>
+
+    <section id="tab-log" class="hidden">
+      <table><thead><tr><th>Огноо</th><th>Хэн</th><th>Бараа</th><th>Өөрчлөлт</th><th>Тэмдэглэл</th></tr></thead><tbody id="logBody"></tbody></table>
+    </section>
+
+    <section id="tab-admin" class="hidden">
+      <h2>Ажилтнууд</h2>
+      <div class="bar"><input id="nu" placeholder="Хэрэглэгчийн нэр"><input id="np" type="password" placeholder="Нууц үг (8+)"><select id="nr"><option value="worker">ажилтан</option><option value="admin">админ</option></select><button class="primary" id="addUser">Нэмэх</button></div>
+      <table><tbody id="users"></tbody></table>
+      <h2>Ангилал</h2>
+      <div class="bar"><input id="nc" placeholder="Шинэ ангилал"><button class="primary" id="addCat">Нэмэх</button></div>
+      <table><tbody id="cats"></tbody></table>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlg">
+  <form method="dialog" id="itemForm">
+    <h3 id="dlgTitle">Бараа</h3>
+    <label>Нэр</label><input id="fName" required>
+    <label>Ангилал</label><select id="fCat"></select>
+    <label>Үнэ (хоосон бол үнэгүй)</label><input id="fPrice" type="number" min="0" step="any">
+    <label>Нэгж</label>
+    <select id="fUnit"><option>ширхэг</option><option>кг</option><option>метр</option></select>
+    <label>Үлдэгдэл</label><input id="fStock" type="number" min="0" step="any" value="0" required>
+    <label>Дуусч байгааг сануулах хэмжээ (энэ хэмжээнээс бага/тэнцүү үед)</label><input id="fLow" type="number" min="0" step="any" value="5">
+    <label>Зураг</label><input id="fPhoto" type="file" accept="image/*">
+    <div class="bar" style="margin-top:14px">
+      <button class="primary" value="save">Хадгалах</button><button value="cancel" formnovalidate>Болих</button>
+      <button type="button" class="danger adminOnly" id="delItem" style="margin-left:auto">Устгах</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let token = localStorage.token || '', me = null, editing = null, cats = [];
+
+const ERR = {
+  'login required': 'Нэвтрэх шаардлагатай', 'admin only': 'Зөвхөн админ хийх боломжтой', 'invalid credentials': 'Нэр эсвэл нууц үг буруу',
+  'super admin already exists': 'Супер админ аль хэдийн үүссэн', 'username and password (min 8 chars) required': 'Хэрэглэгчийн нэр, нууц үг (8+ тэмдэгт) оруулна уу',
+  'username taken': 'Энэ нэр бүртгэлтэй байна', 'cannot delete yourself': 'Өөрийгөө устгах боломжгүй', 'name required': 'Нэр оруулна уу',
+  'category exists': 'Ийм ангилал байна', 'category still has items': 'Ангилалд бараа байгаа тул устгах боломжгүй', 'not found': 'Олдсонгүй',
+  'invalid item': 'Барааны мэдээлэл буруу байна', 'jpeg, png, webp or gif only': 'Зөвхөн jpeg, png, webp, gif зураг', 'too large': 'Зураг хэт том (5MB хүртэл)',
+};
+async function api(path, opts = {}) {
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers.Authorization = 'Bearer ' + token;
+  if (opts.json) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(opts.json); }
+  const r = await fetch(path, { ...opts, headers });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && token) logout();
+  if (!r.ok) { toast(ERR[data.error] || data.error || 'Алдаа гарлаа'); throw new Error(data.error); }
+  return data;
+}
+function toast(m) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2800); }
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = (n) => Number(n).toLocaleString('mn-MN', { maximumFractionDigits: 3 });
+const step = (unit) => unit === 'ширхэг' ? 1 : 0.5;
+const ROLE = { admin: 'админ', worker: 'ажилтан' };
+
+// ---- auth
+async function boot() {
+  const { needsSetup } = await fetch('/api/status').then((r) => r.json());
+  if (token) { try { me = await api('/api/me'); return showApp(); } catch {} }
+  $('#loginTitle').textContent = needsSetup ? 'Супер админ үүсгэх' : 'Нэвтрэх';
+  $('#loginBtn').textContent = needsSetup ? 'Бүртгэл үүсгэх' : 'Нэвтрэх';
+  $('#loginBtn').dataset.setup = needsSetup ? '1' : '';
+  $('#loginView').classList.remove('hidden'); $('#appView').classList.add('hidden');
+}
+$('#loginBtn').onclick = async () => {
+  const body = { username: $('#u').value.trim(), password: $('#p').value };
+  if ($('#loginBtn').dataset.setup) await api('/api/register', { method: 'POST', json: body });
+  const r = await api('/api/login', { method: 'POST', json: body });
+  token = localStorage.token = r.token; me = { username: r.username, role: r.role }; showApp();
+};
+function logout() { token = ''; delete localStorage.token; location.reload(); }
+$('#logout').onclick = logout;
+
+function showApp() {
+  $('#loginView').classList.add('hidden'); $('#appView').classList.remove('hidden');
+  $('#who').textContent = `${me.username} (${ROLE[me.role]})`;
+  document.querySelectorAll('.adminOnly').forEach((e) => e.classList.toggle('hidden', me.role !== 'admin'));
+  show('dash');
+}
+
+// ---- tabs
+function show(tab) {
+  document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('main > section').forEach((s) => s.classList.toggle('hidden', s.id !== 'tab-' + tab));
+  ({ dash: loadDash, items: loadItems, log: loadLog, admin: loadAdmin })[tab]();
+}
+document.querySelectorAll('nav button').forEach((b) => b.onclick = () => show(b.dataset.tab));
+
+// ---- cards
+function card(i) {
+  const bg = i.photo ? `style="background-image:url('${i.photo}')"` : '';
+  const badge = i.status === 'ok' ? '' : `<span class="badge ${i.status}">${i.status === 'out' ? 'ДУУССАН' : 'ДУУСАХАД ойр'}</span>`;
+  const price = i.price == null ? 'Үнэгүй / үнэ байхгүй' : `${num(i.price)}₮ / ${esc(i.unit)}`;
+  const st = step(i.unit);
+  return `<div class="card">
+    <div class="photo" ${bg} data-edit="${i.id}">${i.photo ? '' : '📷 Зураггүй'}${badge}</div>
+    <div class="body"><div class="name">${esc(i.name)}</div>
+      <div class="mute">${esc(i.category || 'Ангилалгүй')} · ${price}</div>
+      <div class="stock"><button data-adj="${-st}" data-id="${i.id}">−</button>
+        <span><b data-custom="${i.id}" title="Тоо хэмжээг гараар оруулах">${num(i.stock)}</b> <span class="mute">${esc(i.unit)}</span></span>
+        <button data-adj="${st}" data-id="${i.id}">+</button></div>
+    </div></div>`;
+}
+function bindCards(root, reload) {
+  root.onclick = async (e) => {
+    const t = e.target, edit = t.closest('[data-edit]');
+    if (t.dataset.adj) { await api(`/api/items/${t.dataset.id}/adjust`, { method: 'POST', json: { delta: Number(t.dataset.adj) } }); reload(); }
+    else if (t.dataset.custom) {
+      const v = prompt('Өөрчлөх хэмжээ (авах бол сөрөг тоо, жишээ нь -2.5; нэмэх бол эерэг):');
+      const delta = Number(String(v ?? '').replace(',', '.'));
+      if (v && Number.isFinite(delta) && delta !== 0) { await api(`/api/items/${t.dataset.custom}/adjust`, { method: 'POST', json: { delta } }); reload(); }
+    } else if (edit) openItem(Number(edit.dataset.edit));
+  };
+}
+
+// ---- dashboard
+async function loadDash() {
+  const s = await api('/api/summary');
+  $('#sTotal').textContent = s.total; $('#sLow').textContent = s.low; $('#sOut').textContent = s.out;
+  $('#lowGrid').innerHTML = s.lowItems.map(card).join('') || '<span class="mute">Бүх бараа хангалттай байна 🎉</span>';
+  $('#leaving').innerHTML = s.topLeaving.map((t) => `<tr><td>${esc(t.name)}</td><td>${num(t.taken)} ${esc(t.unit || '')}</td></tr>`).join('') || '<tr><td colspan=2 class="mute">Хөдөлгөөн алга</td></tr>';
+  bindCards($('#lowGrid'), loadDash);
+}
+
+// ---- items
+async function loadCats() {
+  cats = await api('/api/categories');
+  const opts = cats.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const cur = $('#cat').value;
+  $('#cat').innerHTML = '<option value="">Бүх ангилал</option>' + opts; $('#cat').value = cur;
+  $('#fCat').innerHTML = '<option value="">Ангилалгүй</option>' + opts;
+}
+async function loadItems() {
+  await loadCats();
+  const p = new URLSearchParams({ q: $('#q').value, category: $('#cat').value, status: $('#status').value });
+  for (const [k, v] of [...p]) if (!v) p.delete(k);
+  const items = await api('/api/items?' + p);
+  $('#grid').innerHTML = items.map(card).join('') || '<span class="mute">Бараа олдсонгүй</span>';
+  bindCards($('#grid'), loadItems);
+}
+['q', 'cat', 'status'].forEach((id) => $('#' + id).addEventListener('input', loadItems));
+
+async function openItem(id) {
+  await loadCats();
+  const i = id > 0 ? (await api('/api/items')).find((x) => x.id === id) : null;
+  editing = i || null;
+  $('#dlgTitle').textContent = i ? 'Бараа засах' : 'Бараа нэмэх';
+  $('#fName').value = i?.name || ''; $('#fCat').value = i?.category_id ?? '';
+  $('#fPrice').value = i?.price ?? ''; $('#fStock').value = i?.stock ?? 0;
+  $('#fUnit').value = i?.unit || 'ширхэг'; $('#fLow').value = i?.low_threshold ?? 5; $('#fPhoto').value = '';
+  $('#delItem').classList.toggle('hidden', !i || me.role !== 'admin');
+  $('#dlg').showModal();
+}
+$('#addItem').onclick = () => openItem(-1);
+$('#itemForm').onsubmit = async (e) => {
+  if (e.submitter?.value !== 'save') return;
+  const body = { name: $('#fName').value.trim(), categoryId: $('#fCat').value ? Number($('#fCat').value) : null,
+    price: $('#fPrice').value === '' ? null : Number($('#fPrice').value), stock: Number($('#fStock').value),
+    unit: $('#fUnit').value, lowThreshold: Number($('#fLow').value) };
+  const r = editing ? await api('/api/items/' + editing.id, { method: 'PUT', json: body }) : await api('/api/items', { method: 'POST', json: body });
+  const id = editing ? editing.id : r.id, file = $('#fPhoto').files[0];
+  if (file) await api(`/api/items/${id}/photo`, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+  show($('nav .active').dataset.tab);
+};
+$('#delItem').onclick = async () => {
+  if (!confirm('Энэ барааг устгах уу?')) return;
+  await api('/api/items/' + editing.id, { method: 'DELETE' }); $('#dlg').close(); show($('nav .active').dataset.tab);
+};
+
+// ---- activity
+async function loadLog() {
+  const rows = await api('/api/movements');
+  $('#logBody').innerHTML = rows.map((m) => `<tr><td>${esc(m.ts)}</td><td>${esc(m.username)}</td><td>${esc(m.item_name)}</td>
+    <td style="color:${m.delta < 0 ? 'var(--out)' : 'var(--ok)'}">${m.delta > 0 ? '+' : ''}${num(m.delta)}</td><td>${esc(m.note || '')}</td></tr>`).join('')
+    || '<tr><td colspan=5 class="mute">Хөдөлгөөн алга</td></tr>';
+}
+
+// ---- admin
+async function loadAdmin() {
+  if (me.role !== 'admin') return;
+  const [users, c] = await Promise.all([api('/api/users'), api('/api/categories')]);
+  $('#users').innerHTML = users.map((u) => `<tr><td>${esc(u.username)}</td><td>${ROLE[u.role]}</td><td><button class="danger" data-du="${u.id}">Хасах</button></td></tr>`).join('');
+  $('#cats').innerHTML = c.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.items} бараа</td><td><button class="danger" data-dc="${x.id}">Устгах</button></td></tr>`).join('');
+}
+$('#addUser').onclick = async () => { await api('/api/users', { method: 'POST', json: { username: $('#nu').value.trim(), password: $('#np').value, role: $('#nr').value } }); $('#nu').value = $('#np').value = ''; loadAdmin(); };
+$('#addCat').onclick = async () => { await api('/api/categories', { method: 'POST', json: { name: $('#nc').value.trim() } }); $('#nc').value = ''; loadAdmin(); };
+$('#tab-admin').onclick = async (e) => {
+  if (e.target.dataset.du) { await api('/api/users/' + e.target.dataset.du, { method: 'DELETE' }); loadAdmin(); }
+  if (e.target.dataset.dc) { await api('/api/categories/' + e.target.dataset.dc, { method: 'DELETE' }); loadAdmin(); }
+};
+$('#p').addEventListener('keydown', (e) => e.key === 'Enter' && $('#loginBtn').click());
+boot();
+</script>
+</body>
+</html>
